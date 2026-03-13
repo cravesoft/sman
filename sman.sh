@@ -163,6 +163,10 @@ fi
 
 pattern="struct $entry {"
 
+if [ ! -f "$index_file" ]; then
+  printf >&2 'Tip: run `sman --update-index` to build a search index for faster lookups.\n'
+fi
+
 if [ -f "$index_file" ]; then
   grep_opts=
   if [ $ignore_case -eq 1 ]; then
