@@ -137,8 +137,6 @@ if [ $ignore_case -eq 1 ]; then
   zgrep_opts="$zgrep_opts --ignore-case"
 fi
 
-exec 3>&1
-
 pattern="struct $entry {"
 
 set -f; IFS=:
@@ -149,17 +147,11 @@ for path in $MANPATH; do
     if [ ! -e "$secdir" ]; then
       continue
     fi
-    tmp="$(mktemp /tmp/sman.XXXXXX)" || exit 1
-    find "$secdir" ! -name "$(printf "*\n*")" -name '*.gz' > "$tmp"
-    while IFS= read -r file; do
-      res=$(zgrep $zgrep_opts "$pattern" "$file")
-      if [ ! -z "$res" ]; then
-        page=$(basename "${file%%.*}")
-        break
-      fi
-    done < "$tmp"
-    rm "$tmp"
-    if [ ! -z "$page" ]; then
+    file=$(find "$secdir" ! -name "$(printf "*\n*")" -name '*.gz' \
+      | xargs -P "$(nproc)" -n 50 zgrep $zgrep_opts "$pattern" 2>/dev/null \
+      | head -1)
+    if [ -n "$file" ]; then
+      page=$(basename "${file%%.*}")
       if [ $where -eq 1 ]; then
         eval "$man" -- "$page"
       else
