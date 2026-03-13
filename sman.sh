@@ -25,6 +25,8 @@ Search for the definition of STRUCT in manual pages.
 OPTIONS are the same as for 'man'.
 
 -A: search all sections.
+--update-index: build or rebuild the search index (~/.cache/sman/index)
+                for faster subsequent lookups.
 
 Report bugs to <cravesoft@gmail.com>."
 
@@ -34,9 +36,11 @@ escape='
   s/'\''/'\''\\'\'''\''/g
   $s/$/'\''/
 '
+index_file="${XDG_CACHE_HOME:-$HOME/.cache}/sman/index"
 operands=
 all_sections=0
 ignore_case=1
+update_index=0
 where=0
 
 while [ $# -ne 0 ]; do
@@ -92,6 +96,9 @@ while [ $# -ne 0 ]; do
   (-A)
     all_sections=1
     continue;;
+  (--update-index)
+    update_index=1
+    continue;;
   (-\? | -h | --h | --he | --hel | --help | -u | --usage)
     echo "$usage" || exit 2
     exit;;
@@ -111,6 +118,23 @@ while [ $# -ne 0 ]; do
 done
 
 eval "set -- $operands "'${1+"$@"}'
+
+if [ $update_index -eq 1 ]; then
+  mkdir -p "$(dirname "$index_file")"
+  printf >&2 'Building sman index...\n'
+  set -f; IFS=:
+  for path in $MANPATH; do
+    set +f; unset IFS
+    for section in $DEFAULTSECT $OTHERSECT; do
+      secdir=$path/man$section
+      [ -e "$secdir" ] || continue
+      find "$secdir" ! -name "$(printf "*\n*")" -name '*.gz'
+    done
+  done | xargs -P "$(nproc)" -n 50 zgrep -H 'struct [^ {]* {' 2>/dev/null > "$index_file"
+  set +f; unset IFS
+  printf 'Index written to %s\n' "$index_file"
+  exit 0
+fi
 
 entry=
 case ${1?"missing entry; try \`$0 --help' for help"} in
@@ -138,6 +162,26 @@ if [ $ignore_case -eq 1 ]; then
 fi
 
 pattern="struct $entry {"
+
+if [ -f "$index_file" ]; then
+  grep_opts=
+  if [ $ignore_case -eq 1 ]; then
+    grep_opts="-i"
+  fi
+  sect_re=$(printf '%s' "$sections" | tr ' ' '|')
+  line=$(grep $grep_opts "$pattern" "$index_file" \
+    | grep -E "/man($sect_re)/[^/]+$" | head -1)
+  if [ -n "$line" ]; then
+    file="${line%%:*}"
+    page=$(basename "${file%%.*}")
+    if [ $where -eq 1 ]; then
+      eval "$man" -- "$page"
+    else
+      eval "$man" -- "$page" | less -I "+/$(echo "$pattern" | sed 's/{/\\\{/')"
+    fi
+    exit 0
+  fi
+fi
 
 set -f; IFS=:
 for path in $MANPATH; do
