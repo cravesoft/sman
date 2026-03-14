@@ -9,5 +9,6 @@ in on-line reference manuals.
 
 You can install sman with:
 
-    curl https://raw.githubusercontent.com/cravesoft/sman/master/sman.sh > ~/bin/sman
-    chmod +x ~/bin/sman
+    mkdir -p ~/.local/bin
+    curl https://raw.githubusercontent.com/cravesoft/sman/master/sman.sh > ~/.local/bin/sman
+    chmod +x ~/.local/bin/sman
